@@ -180,58 +180,58 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T037 [P] [US2] Write `tests/unit/sync/test_planner_updates.py`:
+- [X] T037 [P] [US2] Write `tests/unit/sync/test_planner_updates.py`:
   - a changed `desired_hash` → `Update`
   - a key gone from the feed → `Delete` (state `cancelled`)
   - `local_override=skip` → `Delete` + `skipped`
   - a key that reappears after `cancelled` → `pending`
   - past starts → `past`
   - order: deletes, then updates, then creates
-- [ ] T038 [P] [US2] Write `tests/unit/sync/test_safety.py` (research R7):
+- [X] T038 [P] [US2] Write `tests/unit/sync/test_safety.py` (research R7):
   - a feed fetch or parse failure → no deletes planned
   - removals > `max_removals_per_run` (5), or all active removed → `SafetyHold` (exit 5) unless `allow_mass_removal`
-- [ ] T039 [P] [US2] Write `tests/integration/test_us2_acceptance.py` (and the catch-up test below):
+- [X] T039 [P] [US2] Write `tests/integration/test_us2_acceptance.py` (and the catch-up test below):
   - US2-1: 30 consecutive runs produce 0 duplicates and 0 writes (SC-003)
   - US2-2: a rename or time change updates the same video id
   - US2-3: an instance deleted from the calendar → its broadcast deleted
   - US2-4: a broadcast created by hand is never modified
   - **catch-up after downtime** (spec edge case): sync at day 0, advance time-machine by 5 days with no runs, sync once → exactly the occurrences that entered the horizon are created, 0 duplicates, past ones become `past`
   - **dry run**: `sync --dry-run` → 0 API writes, 0 occurrence or broadcast changes, and one `run` row with `dry_run=1` and counters equal to what a real run then produces
-- [ ] T040 [P] [US2] Write `tests/integration/test_manual_changes.py` (research R6):
+- [X] T040 [P] [US2] Write `tests/integration/test_manual_changes.py` (research R6):
   - a remote title edited → `owner_modified`, not overwritten
   - a remote broadcast deleted → `owner_deleted`, never recreated
   - `lifeCycleStatus=live` → `past`, untouched
   - `occurrence reclaim` restores management
-- [ ] T041 [P] [US2] Write `tests/integration/test_crash_recovery.py` (research R5):
+- [X] T041 [P] [US2] Write `tests/integration/test_crash_recovery.py` (research R5):
   - a crash after insert and before commit → the next run adopts the broadcast whose `publishedAt ≥ intent_at − 2 min` with an exact title and start match
   - two matches → `failed` with `ambiguous_recovery`
   - no match → insert retried
-- [ ] T042 [P] [US2] Write `tests/integration/test_external_conflict.py` (001 FR-017 / US2-5, which is 004 FR-010 and research S6):
+- [X] T042 [P] [US2] Write `tests/integration/test_external_conflict.py` (001 FR-017 / US2-5, which is 004 FR-010 and research S6):
   - FakeYouTube is pre-seeded with a broadcast created by hand at `2026-10-10T00:00:00Z` titled `October 9th, 2026 - Taizé`, and the calendar has Friday 2026-10-09 19:00 America/Chicago
   - expected: occurrence `exists_external` with `external_broadcast_id` set, 0 inserts, and 0 updates or deletes on that id
   - after the fake removes it, the next run creates our own
   - a ±16 min offset does **not** block
-- [ ] T043 [P] [US2] Write `tests/integration/test_quota_and_transient.py`:
+- [X] T043 [P] [US2] Write `tests/integration/test_quota_and_transient.py`:
   - `QuotaExceeded` after 2 inserts → the rest stay `pending` with `deferred_reason=quota`, run `partial` (exit 1), and the next run completes them with no duplicates
   - 5xx ×3 → `deferred_reason=transient`
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Extend `src/livestream_scheduler/sync/planner.py` with the update, delete, skip, cancel and past transitions and the R7 safety hold. The data-model.md state machine is the specification; implement every arrow. Depends on T032.
-- [ ] T045 [US2] Implement the manual-change detection (R6) in `src/livestream_scheduler/sync/executor.py`:
+- [X] T044 [US2] Extend `src/livestream_scheduler/sync/planner.py` with the update, delete, skip, cancel and past transitions and the R7 safety hold. The data-model.md state machine is the specification; implement every arrow. Depends on T032.
+- [X] T045 [US2] Implement the manual-change detection (R6) in `src/livestream_scheduler/sync/executor.py`:
   - before any update or delete, `get_broadcasts` the owned ids (batched)
   - missing → `owner_deleted`
   - `managed_hash() != last_written_hash` → `owner_modified`
   - `life_cycle_status ∉ {created, ready}` → `past`
   - every update or delete target id MUST come from the `broadcast` table with `deleted_at IS NULL`
-- [ ] T046 [US2] Implement `src/livestream_scheduler/sync/recovery.py` (R5): recover `creating` occurrences via `list_upcoming(since=intent_at)` under the adoption rules in T041. Wire it into `run.py` before planning.
-- [ ] T047 [US2] Implement `src/livestream_scheduler/sync/external.py` (001 FR-017, 004 S6):
+- [X] T046 [US2] Implement `src/livestream_scheduler/sync/recovery.py` (R5): recover `creating` occurrences via `list_upcoming(since=intent_at)` under the adoption rules in T041. Wire it into `run.py` before planning.
+- [X] T047 [US2] Implement `src/livestream_scheduler/sync/external.py` (001 FR-017, 004 S6):
   - when the plan has ≥1 `Create` or any `exists_external` rows exist, call `list_upcoming(since=None)` once (the contract default means "from now")
   - mark pending occurrences with an unowned broadcast within ±15 min as `exists_external` (store id, title, start), removing their `Create`
   - put `exists_external` back to `pending` when the external broadcast is gone and the start is in the future; set it to `past` once the start has passed
   - wire into `run.py` between plan and execute
-- [ ] T048 [US2] Implement quota and transient deferral bookkeeping in `src/livestream_scheduler/sync/executor.py` (`deferred_reason`, `attempts`, run outcome `partial`) and the `run_item` rows for every action (`create`, `update`, `delete`, `adopt`, `skip`, `defer`, `conflict`, `mark_owner_modified`, `mark_owner_deleted`, `fail`, `external_conflict`)
-- [ ] T049 [US2] Add the CLI commands `occurrence skip|unskip|approve|reclaim|retry <id>` to `src/livestream_scheduler/cli.py` (contracts/cli.md)
+- [X] T048 [US2] Implement quota and transient deferral bookkeeping in `src/livestream_scheduler/sync/executor.py` (`deferred_reason`, `attempts`, run outcome `partial`) and the `run_item` rows for every action (`create`, `update`, `delete`, `adopt`, `skip`, `defer`, `conflict`, `mark_owner_modified`, `mark_owner_deleted`, `fail`, `external_conflict`)
+- [X] T049 [US2] Add the CLI commands `occurrence skip|unskip|approve|reclaim|retry <id>` to `src/livestream_scheduler/cli.py` (contracts/cli.md)
 
 **Checkpoint**: US1 and US2 tests pass. It is safe to run against the live channel: hand-made broadcasts like the Oct 9 Taizé are protected.
 

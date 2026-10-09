@@ -364,6 +364,100 @@ def config_check(ctx: Ctx) -> None:
     )
 
 
+# ---- occurrence overrides ---------------------------------------------------------------------
+@cli.group("occurrence")
+def occurrence_group() -> None:
+    """Per-occurrence overrides: skip, unskip, approve, reclaim, retry."""
+
+
+def _get_occ(repo: Any, occurrence_id: int) -> Any:
+    occ = repo.occurrence(occurrence_id)
+    if occ is None:
+        raise CliError(f"no occurrence #{occurrence_id}", ExitCode.USAGE)
+    return occ
+
+
+@occurrence_group.command("skip")
+@click.argument("occurrence_id", type=int)
+@click.pass_obj
+def occ_skip(ctx: Ctx, occurrence_id: int) -> None:
+    """Skip one occurrence; its livestream is removed on the next sync."""
+    repo = _repo(ctx)
+    occ = _get_occ(repo, occurrence_id)
+    with repo.tx():
+        repo.update_occurrence(occ.id, local_override="skip")
+    emit(ctx, f"#{occ.id} will be skipped on the next sync.", {"id": occ.id, "override": "skip"})
+
+
+@occurrence_group.command("unskip")
+@click.argument("occurrence_id", type=int)
+@click.pass_obj
+def occ_unskip(ctx: Ctx, occurrence_id: int) -> None:
+    """Undo `skip`; the livestream is recreated on the next sync."""
+    repo = _repo(ctx)
+    occ = _get_occ(repo, occurrence_id)
+    with repo.tx():
+        values: dict[str, Any] = {"local_override": None}
+        if occ.state == "skipped":
+            values["state"] = "pending"
+        repo.update_occurrence(occ.id, **values)
+    emit(ctx, f"#{occ.id} is no longer skipped.", {"id": occ.id, "override": None})
+
+
+@occurrence_group.command("approve")
+@click.argument("occurrence_id", type=int)
+@click.pass_obj
+def occ_approve(ctx: Ctx, occurrence_id: int) -> None:
+    """Approve an occurrence held because it overlaps another livestream."""
+    repo = _repo(ctx)
+    occ = _get_occ(repo, occurrence_id)
+    with repo.tx():
+        repo.update_occurrence(
+            occ.id,
+            local_override="approve_overlap",
+            state="pending" if occ.state == "conflict" else occ.state,
+        )
+    emit(ctx, f"#{occ.id} approved despite the overlap.", {"id": occ.id})
+
+
+@occurrence_group.command("reclaim")
+@click.argument("occurrence_id", type=int)
+@click.pass_obj
+def occ_reclaim(ctx: Ctx, occurrence_id: int) -> None:
+    """Hand an owner_modified/owner_deleted occurrence back to the app."""
+    from .sync.executor import RECLAIMED
+
+    repo = _repo(ctx)
+    occ = _get_occ(repo, occurrence_id)
+    if occ.state not in ("owner_modified", "owner_deleted"):
+        raise CliError(
+            f"#{occ.id} is {occ.state}, not owner_modified/owner_deleted", ExitCode.USAGE
+        )
+    with repo.tx():
+        b = repo.owned_broadcast(occ.id)
+        if occ.state == "owner_modified" and b is not None:
+            # Force the next sync to overwrite: stale hash + sentinel.
+            repo.update_broadcast(b.broadcast_id, last_written_hash=RECLAIMED)
+            repo.update_occurrence(occ.id, state="scheduled", state_reason=None, desired_hash="")
+        else:
+            repo.update_occurrence(occ.id, state="pending", state_reason=None)
+    emit(ctx, f"#{occ.id} is managed by the app again.", {"id": occ.id})
+
+
+@occurrence_group.command("retry")
+@click.argument("occurrence_id", type=int)
+@click.pass_obj
+def occ_retry(ctx: Ctx, occurrence_id: int) -> None:
+    """Move a failed occurrence back to pending."""
+    repo = _repo(ctx)
+    occ = _get_occ(repo, occurrence_id)
+    if occ.state != "failed":
+        raise CliError(f"#{occ.id} is {occ.state}, not failed", ExitCode.USAGE)
+    with repo.tx():
+        repo.update_occurrence(occ.id, state="pending", state_reason=None, desired_hash="")
+    emit(ctx, f"#{occ.id} will be retried on the next sync.", {"id": occ.id})
+
+
 def main(argv: list[str] | None = None) -> None:
     try:
         cli.main(args=argv, standalone_mode=False)

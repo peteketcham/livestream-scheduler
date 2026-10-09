@@ -25,6 +25,8 @@ from .planner import Create, Delete, Plan, Update
 log = logging.getLogger(__name__)
 
 MANAGEABLE_LIFECYCLE = ("created", "ready")
+# Set by `occurrence reclaim`: the next write may overwrite whatever is on YouTube.
+RECLAIMED = "reclaimed"
 
 REASONS = {
     "invalidScheduledStartTime": "YouTube rejected the start time (it must be in the future)",
@@ -226,7 +228,7 @@ class Executor:
         if r.life_cycle_status not in MANAGEABLE_LIFECYCLE:
             self.repo.update_occurrence(occ_id, state="past", state_reason="already live or done")
             return False
-        if r.managed_hash() != b.last_written_hash:
+        if b.last_written_hash != RECLAIMED and r.managed_hash() != b.last_written_hash:
             self.repo.update_occurrence(
                 occ_id,
                 state="owner_modified",
