@@ -18,7 +18,7 @@ Repeat runs are idempotent through stable occurrence keys and crash-safe insert 
 
 **Language/Version**: Python 3.12
 
-**Repository rule** (owner, 2026-10-08): **no dotfiles or dotfolders are tracked**. There is no `.gitignore`, `.python-version` or `.github/`. Local ignores live in `.git/info/exclude`, and quality gates run through `scripts/check.sh` plus a local pre-commit hook instead of hosted CI.
+**Repository rule** (owner, 2026-10-08): **no dotfiles or dotfolders are tracked, except `.gitignore`**. There is no `.python-version` or `.github/`. `.gitignore` holds the standard ignores, and `.git/info/exclude` blocks every other dotfile with `.*`, and quality gates run through `scripts/check.sh` plus a local pre-commit hook instead of hosted CI.
 
 **Packaging/Runner**: **uv**, with a committed `uv.lock`, a uv-managed Python 3.12, and `uv run --frozen` in development, CI and production (research R16).
 
