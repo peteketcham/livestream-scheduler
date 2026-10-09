@@ -101,7 +101,7 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T022 [P] [US1] Add ICS fixtures under `tests/fixtures/ics/`:
+- [X] T022 [P] [US1] Add ICS fixtures under `tests/fixtures/ics/`:
   - `weekly.ics` (Tuesday 19:00 America/Chicago, RRULE weekly)
   - `overrides.ics` (a RECURRENCE-ID moved instance)
   - `exdate.ics`
@@ -110,14 +110,14 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
   - `html-desc.ics` (an HTML DESCRIPTION with `yt.visibility: unlisted`)
   - `floating.ics` (no TZID)
   - `empty.ics`
-- [ ] T023 [P] [US1] Write `tests/unit/calendar/test_expand.py`:
+- [X] T023 [P] [US1] Write `tests/unit/calendar/test_expand.py`:
   - keys are `UID` for single events and `UID|YYYY-MM-DDTHH:MM:SSZ` (original start) for recurring instances
   - EXDATE is excluded
   - a moved instance keeps its key
   - 19:00 local is kept across DST (UTC differs by 1 h)
   - instances before `now + min_lead_minutes` are excluded
   - the window ends at `now + horizon.days`
-- [ ] T024 [P] [US1] Write `tests/unit/calendar/test_mapping.py` covering every row in contracts/calendar-mapping.md:
+- [X] T024 [P] [US1] Write `tests/unit/calendar/test_mapping.py` covering every row in contracts/calendar-mapping.md:
   - the title is truncated to 100 chars with a warning; an empty title gives `failed: "Event has no title"`
   - HTML is converted to text and directive lines are removed
   - `<` `>` are stripped and the description is capped at 5000 UTF-8 bytes
@@ -126,20 +126,20 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
   - an unknown `yt.*` directive gives a warning
   - all-day events are skipped
   - the `include.summary_prefix` filter strips the prefix
-- [ ] T025 [P] [US1] Write `tests/unit/test_auth.py`:
+- [X] T025 [P] [US1] Write `tests/unit/test_auth.py`:
   - `connect` stores `token.json` with mode 0600
   - the handle check is case-insensitive
   - another channel → revoke + exit 3 with `Authorized channel "<title>" (@<handle>) is not @minnehahaumc; …`
   - a `youtube.channel_id` mismatch is rejected
   - `disconnect` POSTs to the revoke URL and deletes the file
-- [ ] T026 [P] [US1] Write `tests/integration/test_us1_acceptance.py`: US1-1 (4 broadcasts created and fields match), US1-2 (not connected → exit 3, no API calls), US1-3 (wrong channel refused, then the right channel is accepted)
+- [X] T026 [P] [US1] Write `tests/integration/test_us1_acceptance.py`: US1-1 (4 broadcasts created and fields match), US1-2 (not connected → exit 3, no API calls), US1-3 (wrong channel refused, then the right channel is accepted)
 
 ### Implementation for User Story 1
 
-- [ ] T027 [P] [US1] Implement `src/livestream_scheduler/calendar/fetch.py`: an HTTPS GET of the resolved secret URL with `If-None-Match`/`If-Modified-Since` and a 15 s timeout, or a local `path`. It stores `etag`/`last_modified`/`url_hash`/`last_body_sha256` in `calendar_source`, and never logs the URL.
-- [ ] T028 [P] [US1] Implement `src/livestream_scheduler/calendar/expand.py`: `icalendar` + `recurring-ical-events` over `[now+min_lead, now+horizon]` producing the key rule above. Floating times use `defaults.timezone`; `STATUS:CANCELLED` instances are excluded.
-- [ ] T029 [P] [US1] Implement `src/livestream_scheduler/calendar/mapping.py`: `DesiredOccurrence` (key, title, description, start_utc, end_utc, source_tz, visibility, directives dict, warnings) per contracts/calendar-mapping.md, including directive parsing (`yt.<name>: <value>`, case-insensitive), the **`calendar.include` filter** (`summary_prefix`: keep only matching titles and strip the prefix; `directive: true`: keep only events with `yt.stream: yes`), and `desired_hash`
-- [ ] T030 [US1] Implement `src/livestream_scheduler/auth.py`:
+- [X] T027 [P] [US1] Implement `src/livestream_scheduler/calendar/fetch.py`: an HTTPS GET of the resolved secret URL with `If-None-Match`/`If-Modified-Since` and a 15 s timeout, or a local `path`. It stores `etag`/`last_modified`/`url_hash`/`last_body_sha256` in `calendar_source`, and never logs the URL.
+- [X] T028 [P] [US1] Implement `src/livestream_scheduler/calendar/expand.py`: `icalendar` + `recurring-ical-events` over `[now+min_lead, now+horizon]` producing the key rule above. Floating times use `defaults.timezone`; `STATUS:CANCELLED` instances are excluded.
+- [X] T029 [P] [US1] Implement `src/livestream_scheduler/calendar/mapping.py`: `DesiredOccurrence` (key, title, description, start_utc, end_utc, source_tz, visibility, directives dict, warnings) per contracts/calendar-mapping.md, including directive parsing (`yt.<name>: <value>`, case-insensitive), the **`calendar.include` filter** (`summary_prefix`: keep only matching titles and strip the prefix; `directive: true`: keep only events with `yt.stream: yes`), and `desired_hash`
+- [X] T030 [US1] Implement `src/livestream_scheduler/auth.py`:
   - `InstalledAppFlow.from_client_config(json.loads(resolve(config.google.client_secret)))` (research R19; never a plain file path in production) with the loopback redirect, `--no-browser`, and `--port` (fixed when no-browser)
   - scope `https://www.googleapis.com/auth/youtube.force-ssl`
   - token saved to `<state_dir>/token.json` with mode 0600
@@ -147,22 +147,22 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
   - revoke on `disconnect` via `https://oauth2.googleapis.com/revoke`
 
   Depends on T010, T016.
-- [ ] T031 [US1] Implement `src/livestream_scheduler/youtube/google_adapter.py`:
+- [X] T031 [US1] Implement `src/livestream_scheduler/youtube/google_adapter.py`:
   - `GoogleYouTube` implementing the port, with read-merge-write `update` and batched `get_broadcasts` (≤50 ids)
   - the error mapping table from contracts/youtube-port.md
   - 3 in-call retries with exponential backoff and jitter for `TransientError`
   - quota unit accounting (list 1, write 50)
   - add GoogleYouTube to T020's parametrization using `googleapiclient.http.HttpMockSequence` fixtures in `tests/fixtures/google/`
-- [ ] T032 [US1] Implement the create path of `src/livestream_scheduler/sync/planner.py`: a pure `plan(desired, recorded, now, config) -> list[Action]`. New keys → `Create`, ordered by ascending start. Overlapping `[start, end)` → the later one becomes `Conflict` unless `overlaps: allow`, `yt.allow-overlap: yes`, or `local_override=approve_overlap`.
-- [ ] T033 [US1] Implement the create handling of `src/livestream_scheduler/sync/executor.py`:
+- [X] T032 [US1] Implement the create path of `src/livestream_scheduler/sync/planner.py`: a pure `plan(desired, recorded, now, config) -> list[Action]`. New keys → `Create`, ordered by ascending start. Overlapping `[start, end)` → the later one becomes `Conflict` unless `overlaps: allow`, `yt.allow-overlap: yes`, or `local_override=approve_overlap`.
+- [X] T033 [US1] Implement the create handling of `src/livestream_scheduler/sync/executor.py`:
   - commit the occurrence as `creating` with `intent_at`, then call `insert_broadcast`
   - write the `broadcast` row (`last_written_hash`) and set state `scheduled`
   - call `bind` if `youtube.stream_id` is set
   - map exceptions per research R8 (`QuotaExceeded` stops writes and defers the rest; `NotEligible` aborts with connection → `not_eligible`; `AuthError` aborts with connection → `needs_reauth`)
-- [ ] T034 [US1] Implement `src/livestream_scheduler/sync/run.py`: acquire the lock (`LockHeld` → exit 0, outcome `skipped_locked`), create the `run` row (trigger = `--trigger` or `timer` if `$INVOCATION_ID` else `manual`), verify the connection and channel, then fetch → expand → map → plan → execute, then finalize counts and outcome.
+- [X] T034 [US1] Implement `src/livestream_scheduler/sync/run.py`: acquire the lock (`LockHeld` → exit 0, outcome `skipped_locked`), create the `run` row (trigger = `--trigger` or `timer` if `$INVOCATION_ID` else `manual`), verify the connection and channel, then fetch → expand → map → plan → execute, then finalize counts and outcome.
   - **`--dry-run`**: run everything through planning, print the planned actions, make **no** YouTube writes and **no** changes to `occurrence`/`broadcast`/`calendar_source`, and write a `run` row with `dry_run=1` and the counters the plan would produce (contracts/cli.md)
-- [ ] T035 [US1] Add the CLI commands `connect [--no-browser] [--port N] [--forget-tracked]`, `disconnect`, `sync [--dry-run] [--allow-mass-removal] [--trigger timer|manual]`, `status` and `config check` to `src/livestream_scheduler/cli.py`, with the human output formats in contracts/cli.md
-- [ ] T036 [US1] Add `examples/config.yaml`, the full production example from contracts/config-schema.md (Minnehaha values: `channel_handle: "@minnehahaumc"`, `channel_id: UCzwZQ34D3RZEncTf6fAe0hQ`, `timezone: America/Chicago`, `{credential: …}` secret refs, `client_secrets_file: /etc/livestream-scheduler/client_secret.json`), and `examples/dev-config.yaml` for local development (the same values with `{env: LSS_CALENDAR_URL}` / `{env: LSS_SMTP_PASSWORD}` and `client_secrets_file: ./dev/client_secret.json`), as used in quickstart.md "Local development". (`dev/` is ignored by `.gitignore`.) Also add **`examples/config-repo/`**, the seed for the owner's separate config repository (research R17):
+- [X] T035 [US1] Add the CLI commands `connect [--no-browser] [--port N] [--forget-tracked]`, `disconnect`, `sync [--dry-run] [--allow-mass-removal] [--trigger timer|manual]`, `status` and `config check` to `src/livestream_scheduler/cli.py`, with the human output formats in contracts/cli.md
+- [X] T036 [US1] Add `examples/config.yaml`, the full production example from contracts/config-schema.md (Minnehaha values: `channel_handle: "@minnehahaumc"`, `channel_id: UCzwZQ34D3RZEncTf6fAe0hQ`, `timezone: America/Chicago`, `{credential: …}` secret refs, `client_secrets_file: /etc/livestream-scheduler/client_secret.json`), and `examples/dev-config.yaml` for local development (the same values with `{env: LSS_CALENDAR_URL}` / `{env: LSS_SMTP_PASSWORD}` and `client_secrets_file: ./dev/client_secret.json`), as used in quickstart.md "Local development". (`dev/` is ignored by `.gitignore`.) Also add **`examples/config-repo/`**, the seed for the owner's separate config repository (research R17):
   - `config.yaml` (the production example)
   - `templates/README.md` (a placeholder explaining overrides; no `.gitkeep`, since dotfiles aren't tracked)
   - `README.md` (layout; deploy with `install.sh config-pull`; never commit secrets)

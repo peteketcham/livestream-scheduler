@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.harness import Env
+
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
@@ -26,3 +28,14 @@ def tmp_state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[P
     ):
         monkeypatch.delenv(var, raising=False)
     yield state
+
+
+@pytest.fixture
+def env(tmp_path: Path, tmp_state_dir: Path) -> Iterator[Env]:
+    from livestream_scheduler import cli as cli_mod
+
+    e = Env(root=tmp_path)
+    e.write_config()
+    saved = (cli_mod.YOUTUBE_FACTORY, cli_mod.CONSENT, cli_mod.AFTER_RUN)
+    yield e
+    cli_mod.YOUTUBE_FACTORY, cli_mod.CONSENT, cli_mod.AFTER_RUN = saved

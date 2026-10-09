@@ -86,12 +86,292 @@ def cli(
     )
 
 
+# ---- injection points (tests replace these) --------------------------------------------------
+def _google_factory(creds: Any) -> Any:
+    from .youtube.google_adapter import GoogleYouTube
+
+    return GoogleYouTube(creds)
+
+
+YOUTUBE_FACTORY: Any = _google_factory
+CONSENT: Any = None  # callable(client_config, open_browser, port) -> credentials
+AFTER_RUN: Any = None  # set by notify wiring (US3)
+
+
+def _local(dt: Any, tz: str) -> str:
+    from zoneinfo import ZoneInfo
+
+    return str(dt.astimezone(ZoneInfo(tz)).strftime("%Y-%m-%d %H:%M"))
+
+
+def _repo(ctx: Ctx) -> Any:
+    from .db.migrate import open_db
+    from .db.repo import Repo
+
+    return Repo(open_db(ctx.state_dir))
+
+
+# ---- connect / disconnect ----------------------------------------------------------------------
+@cli.command()
+@click.option("--no-browser", is_flag=True, help="Print the consent URL instead of opening it")
+@click.option("--port", type=int, default=None, help="Loopback port (use with an SSH tunnel)")
+@click.option("--forget-tracked", is_flag=True, help="Allow switching to a different channel")
+@click.pass_obj
+def connect(ctx: Ctx, no_browser: bool, port: int | None, forget_tracked: bool) -> None:
+    """Authorize the YouTube channel (one-time)."""
+    from . import auth
+
+    cfg = ctx.config()
+    if no_browser and port is None:
+        port = 8765
+    repo = _repo(ctx)
+    try:
+        client = auth.client_config(cfg)
+        consent_fn = CONSENT or (
+            lambda c, open_browser, port: auth.run_consent(c, open_browser=open_browser, port=port)
+        )
+        channel = auth.connect(
+            cfg,
+            repo,
+            ctx.state_dir,
+            consent=lambda: consent_fn(client, not no_browser, port),
+            youtube_for=YOUTUBE_FACTORY,
+            forget_tracked=forget_tracked,
+        )
+    except auth.ConnectError as e:
+        raise CliError(str(e), ExitCode(e.code)) from None
+    emit(
+        ctx,
+        f'Connected to channel "{channel.title}" ({channel.id})',
+        {"channel_id": channel.id, "title": channel.title, "handle": channel.handle},
+    )
+
+
+@cli.command()
+@click.pass_obj
+def disconnect(ctx: Ctx) -> None:
+    """Revoke access and delete the stored token."""
+    from . import auth
+
+    had = auth.disconnect(_repo(ctx), ctx.state_dir)
+    emit(ctx, "Disconnected." if had else "Not connected.", {"disconnected": had})
+
+
+# ---- sync -------------------------------------------------------------------------------------
+def _config_commit(config_path: Path) -> str | None:
+    head = config_path.parent / ".git" / "HEAD"
+    try:
+        ref = head.read_text().strip()
+        if ref.startswith("ref: "):
+            ref = (config_path.parent / ".git" / ref[5:]).read_text().strip()
+        return ref[:12]
+    except OSError:
+        return None
+
+
+@cli.command()
+@click.option("--dry-run", is_flag=True, help="Show what would change; change nothing")
+@click.option("--allow-mass-removal", is_flag=True, help="Proceed past the removal safety hold")
+@click.option("--trigger", type=click.Choice(["timer", "manual"]), default=None)
+@click.pass_obj
+def sync(ctx: Ctx, dry_run: bool, allow_mass_removal: bool, trigger: str | None) -> None:
+    """Run one reconciliation pass (this is what the systemd timer runs)."""
+    import os
+
+    from .sync.run import SyncOptions, run_sync
+
+    cfg = ctx.config()
+    for w in ctx.warnings():
+        click.echo(f"warning: {w}", err=True)
+    trig = trigger or ("timer" if os.environ.get("INVOCATION_ID") else "manual")
+    report = run_sync(
+        cfg,
+        ctx.state_dir,
+        youtube_factory=YOUTUBE_FACTORY,
+        options=SyncOptions(
+            dry_run=dry_run,
+            allow_mass_removal=allow_mass_removal,
+            trigger=trig,
+            config_commit=_config_commit(ctx.config_path),
+        ),
+        config_dir=ctx.config_path.parent,
+        after_run=AFTER_RUN,
+    )
+    tz = cfg.defaults.timezone
+    lines = []
+    c = report.counts
+    if report.outcome == "skipped_locked":
+        lines.append("Another run is in progress; skipped.")
+    else:
+        prefix = "DRY RUN — would have: " if dry_run else ""
+        lines.append(
+            f"{prefix}created {c.get('created', 0)}  updated {c.get('updated', 0)}  "
+            f"removed {c.get('removed', 0)}  skipped {c.get('skipped', 0)}  "
+            f"deferred {c.get('deferred', 0)}  failed {c.get('failed', 0)}"
+            + (f"  (run #{report.run_id}, {report.outcome})" if report.run_id else "")
+        )
+    for it in report.items:
+        when = f"{_local(it.start_utc, tz)} {tz}" if it.start_utc else ""
+        title = f'"{it.title}"' if it.title else ""
+        url = f"→ https://youtu.be/{it.broadcast_id}" if it.broadcast_id else ""
+        msg = f"  ({it.message})" if it.message and it.action not in ("create", "update") else ""
+        occ = f"#{it.occurrence_id}" if it.occurrence_id else ""
+        lines.append(f"{it.action:<9} {occ:<5} {when}  {title}  {url}{msg}".rstrip())
+    for w in report.warnings:
+        lines.append(f"warning: {w}")
+    if report.error_message:
+        lines.append(f"{'error' if report.exit_code else 'note'}: {report.error_message}")
+    emit(
+        ctx,
+        "\n".join(lines),
+        {
+            "run": {
+                "id": report.run_id,
+                "outcome": report.outcome,
+                "dry_run": report.dry_run,
+                "counts": report.counts,
+                "error_class": report.error_class,
+                "error_message": report.error_message,
+            },
+            "items": [
+                {
+                    "occurrence_id": i.occurrence_id,
+                    "action": i.action,
+                    "result": i.result,
+                    "broadcast_id": i.broadcast_id,
+                    "message": i.message,
+                }
+                for i in report.items
+            ],
+        },
+    )
+    if report.exit_code:
+        raise SystemExitCode(report.exit_code)
+
+
+class SystemExitCode(Exception):
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+# ---- status -----------------------------------------------------------------------------------
+@cli.command()
+@click.pass_obj
+def status(ctx: Ctx) -> None:
+    """Connection, last run, open problems and the next scheduled livestreams."""
+    from .timeutil import from_iso, utcnow
+
+    cfg = ctx.config()
+    repo = _repo(ctx)
+    conn = repo.get_connection()
+    run = repo.last_run()
+    src = repo.get_calendar_source()
+    problems = repo.open_problems()
+    upcoming = [o for o in repo.occurrences(("scheduled",)) if from_iso(o.start_utc) > utcnow()][:5]
+    tz = cfg.defaults.timezone
+    lines = [
+        "channel: "
+        + (
+            f"{conn.channel_title} ({conn.channel_handle}) — {conn.status}"
+            if conn
+            else "not connected (run `connect`)"
+        ),
+        f"config:  {ctx.config_path}"
+        + (f" @ {commit}" if (commit := _config_commit(ctx.config_path)) else ""),
+        f"feed:    last fetched {src.last_fetched_at if src and src.last_fetched_at else 'never'}",
+    ]
+    if run:
+        lines.append(
+            f"last run: #{run.id} {run.finished_at or run.started_at} {run.outcome} — created "
+            f"{run.created}, updated {run.updated}, removed {run.removed}, deferred "
+            f"{run.deferred}, failed {run.failed}"
+            + (f" ({run.error_message})" if run.error_message else "")
+        )
+    else:
+        lines.append("last run: never")
+    if problems:
+        lines.append("open problems:")
+        lines.extend(f"  - {p.problem_key}: {p.summary or ''}" for p in problems)
+    lines.append("next scheduled:" if upcoming else "next scheduled: none")
+    for o in upcoming:
+        b = repo.owned_broadcast(o.id)
+        url = f"https://youtu.be/{b.broadcast_id}" if b else ""
+        lines.append(f"  #{o.id} {_local(from_iso(o.start_utc), tz)}  {o.title}  {url}")
+    emit(
+        ctx,
+        "\n".join(lines),
+        {
+            "connection": conn.__dict__ if conn else None,
+            "last_run": run.__dict__ if run else None,
+            "open_problems": [p.__dict__ for p in problems],
+            "next": [o.__dict__ for o in upcoming],
+        },
+    )
+
+
+# ---- config check -----------------------------------------------------------------------------
+@cli.group("config")
+def config_group() -> None:
+    """Configuration commands."""
+
+
+@config_group.command("check")
+@click.pass_obj
+def config_check(ctx: Ctx) -> None:
+    """Validate config, fetch + parse the feed, list what would be scheduled (no YouTube)."""
+    from .calendar.expand import FeedError, expand
+    from .calendar.fetch import fetch_feed
+    from .calendar.mapping import all_day_warning, map_instances
+    from .sync.planner import window
+    from .timeutil import utcnow
+
+    cfg = ctx.config()
+    lines = [f"config ok: {ctx.config_path}"]
+    lines.extend(f"warning: {w}" for w in ctx.warnings())
+    try:
+        data = fetch_feed(
+            cfg, _repo(ctx), ctx.state_dir, persist=False, config_dir=ctx.config_path.parent
+        )
+        w_start, w_end = window(utcnow(), cfg.safety.min_lead_minutes, cfg.horizon.days)
+        res = expand(data, w_start, w_end, cfg.defaults.timezone)
+    except FeedError as e:
+        raise CliError(str(e), ExitCode.FEED) from None
+    mapped = map_instances(res.instances, cfg)
+    tz = cfg.defaults.timezone
+    lines.append(f"{len(mapped.desired)} occurrence(s) in the next {cfg.horizon.days} days:")
+    for d in mapped.desired:
+        flag = f"  FAILS: {d.error}" if d.error else ""
+        lines.append(f"  {_local(d.start_utc, tz)}  [{d.visibility}]  {d.title}{flag}")
+        lines.extend(f"      warning: {w}" for w in d.warnings)
+    lines.extend(f"warning: {all_day_warning(i)}" for i in res.all_day)
+    emit(
+        ctx,
+        "\n".join(lines),
+        {
+            "occurrences": [
+                {
+                    "key": d.key,
+                    "start": d.start_utc.isoformat(),
+                    "title": d.title,
+                    "visibility": d.visibility,
+                    "error": d.error,
+                    "warnings": d.warnings,
+                }
+                for d in mapped.desired
+            ]
+        },
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     try:
         cli.main(args=argv, standalone_mode=False)
     except CliError as e:
         click.echo(f"error: {e}", err=True)
         sys.exit(int(e.code))
+    except SystemExitCode as e:
+        sys.exit(e.code)
     except click.exceptions.Abort:
         sys.exit(int(ExitCode.USAGE))
     except click.ClickException as e:
