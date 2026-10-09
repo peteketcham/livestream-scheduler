@@ -271,42 +271,42 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T056 [P] [US4] Write `tests/unit/test_secretscan.py` (research R17, FR-022, SC-009). A config dir containing any of these fails `config check`:
+- [X] T056 [P] [US4] Write `tests/unit/test_secretscan.py` (research R17, FR-022, SC-009). A config dir containing any of these fails `config check`:
   - `credentials/`, `client_secret.json`, `token.json`, `x.age`
   - a YAML value matching `/ical/`, `private-`, `ya29.` or `GOCSPX-`
 
   A clean seed from `examples/config-repo/` passes.
-- [ ] T057 [P] [US4] Write `tests/integration/test_backup.py` (FR-019, FR-020):
+- [X] T057 [P] [US4] Write `tests/integration/test_backup.py` (FR-019, FR-020):
   - the archive holds exactly `manifest.json`, `state.db` and `config/**`; the manifest has the app version, `schema_version`, channel id and handle, `config_commit`, per-file SHA-256 and `secrets_included=false`
   - the snapshot is consistent while a second connection writes (SQLite online backup)
   - `--prune` keeps the newest `backup.keep`
   - grepping the default archive for `ya29.`, `refresh_token`, `GOCSPX-`, `client_secret` and the fixture ICS URL finds nothing
   - `--include-secrets` without `age` on PATH → exit 2
-- [ ] T058 [P] [US4] Write `tests/integration/test_restore.py` (FR-021, US4-1..3):
+- [X] T058 [P] [US4] Write `tests/integration/test_restore.py` (FR-021, US4-1..3):
   - restore into a fresh state dir, then sync → 0 inserts, and a calendar rename updates the restored broadcast ids
   - refuse (exit 2, nothing written) on: manifest `schema_version` > installed, newer app version, channel id mismatch, and an existing `state.db` with a newer run unless `--force`
   - with `--include-secrets` (skipped if `age` is not installed): `token.json` restored with mode 0600, no `connect` needed; a wrong passphrase → nothing written
   - restored `config/` is not applied unless `--apply-config`
-- [ ] T059 [P] [US4] Write `tests/integration/test_unmanaged_report.py` (spec edge cases): an empty `state.db` while FakeYouTube has 3 upcoming broadcasts created by the app → `status` reports `3 upcoming livestreams on the channel are not managed (no record)`. Sync creates none (FR-017 guard) and sends one notification.
+- [X] T059 [P] [US4] Write `tests/integration/test_unmanaged_report.py` (spec edge cases): an empty `state.db` while FakeYouTube has 3 upcoming broadcasts created by the app → `status` reports `3 upcoming livestreams on the channel are not managed (no record)`. Sync creates none (FR-017 guard) and sends one notification.
 
 ### Implementation for User Story 4
 
-- [ ] T060 [P] [US4] Implement `src/livestream_scheduler/secretscan.py` with the R17 file patterns and value regexes. Call it from `config check` (and from `templates check` for the templates dir) in `src/livestream_scheduler/cli.py`.
-- [ ] T061 [US4] Implement `backup()` in `src/livestream_scheduler/backup.py` (research R18):
+- [X] T060 [P] [US4] Implement `src/livestream_scheduler/secretscan.py` with the R17 file patterns and value regexes. Call it from `config check` (and from `templates check` for the templates dir) in `src/livestream_scheduler/cli.py`.
+- [X] T061 [US4] Implement `backup()` in `src/livestream_scheduler/backup.py` (research R18):
   - take the lock (non-blocking; on `LockHeld` retry for up to 10 min)
   - `sqlite3` online backup into a temp dir; copy the active config dir (excluding `.git/`)
   - write `manifest.json`; tar.gz to `lss-backup-<UTC>-v<version>.tar.gz`
-  - with `include_secrets`: add `token.json` + `$CREDENTIALS_DIRECTORY/*`, then encrypt via `age -p` (passphrase from a TTY prompt or `backup.passphrase` credential, passed on stdin, never as an argument), giving `.tar.gz.age`; delete the plaintext
+  - with `include_secrets`: add `token.json` + `$CREDENTIALS_DIRECTORY/*`, then encrypt via `age -p` (passphrase typed at the terminal; `age` has no non-interactive passphrase input, so `backup.passphrase` is rejected), giving `.tar.gz.age`; delete the plaintext
   - prune
   - record a `run` + `run_item(action=backup)`; on failure notify `problem_key=backup`
-- [ ] T062 [US4] Implement `restore()` in `src/livestream_scheduler/backup.py` per R18 steps 1–7:
+- [X] T062 [US4] Implement `restore()` in `src/livestream_scheduler/backup.py` per R18 steps 1–7:
   - decrypt to a temp dir (0700), verify checksums, run the version, channel and newer-state checks
   - place `state.db` (and `token.json`) with mode 0600, owned by the running user
   - run `migrate.py`
   - report the missing credentials and whether `connect` is needed
   - never call YouTube
-- [ ] T063 [US4] Add the CLI commands `backup [--output DIR] [--include-secrets] [--prune]` and `restore PATH [--force] [--apply-config]` to `src/livestream_scheduler/cli.py`. Extend `status` with `config: <repo> @ <sha>` (record `run.config_commit` in `sync/run.py` by reading `<config dir>/.git/HEAD` without invoking git), the last backup time, and the unmanaged upcoming count (from the latest `list_upcoming` vs `broadcast`).
-- [ ] T064 [P] [US4] Add `deploy/systemd/livestream-scheduler-backup.service` and `livestream-scheduler-backup.timer`, verbatim per contracts/deployment.md (`OnCalendar=daily`, `RandomizedDelaySec=30min`, `Persistent=true`, `ReadWritePaths=/var/backups/livestream-scheduler`, only `LoadCredential=oauth-client`, `ExecStart=… backup --output /var/backups/livestream-scheduler --prune`)
+- [X] T063 [US4] Add the CLI commands `backup [--output DIR] [--include-secrets] [--prune]` and `restore PATH [--force] [--apply-config]` to `src/livestream_scheduler/cli.py`. Extend `status` with `config: <repo> @ <sha>` (record `run.config_commit` in `sync/run.py` by reading `<config dir>/.git/HEAD` without invoking git), the last backup time, and the unmanaged upcoming count (from the latest `list_upcoming` vs `broadcast`).
+- [X] T064 [P] [US4] Add `deploy/systemd/livestream-scheduler-backup.service` and `livestream-scheduler-backup.timer`, verbatim per contracts/deployment.md (`OnCalendar=daily`, `RandomizedDelaySec=30min`, `Persistent=true`, `ReadWritePaths=/var/backups/livestream-scheduler`, only `LoadCredential=oauth-client`, `ExecStart=… backup --output /var/backups/livestream-scheduler --prune`)
 
 **Checkpoint**: All 001 user stories, including portability and recovery, pass independently.
 

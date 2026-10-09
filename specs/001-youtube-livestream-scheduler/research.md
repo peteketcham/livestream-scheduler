@@ -191,7 +191,7 @@ These decisions settle every open item in the plan's Technical Context. Owner de
     - `state.db`: a consistent snapshot via SQLite's online backup API (`sqlite3.Connection.backup`), safe while the timer runs
     - `config/`: a copy of the active config and templates, including the commit id
   - **Secrets excluded by default**: no `token.json` and no credentials.
-  - **With `--include-secrets`**: `token.json` and the credential files are added, and the **whole archive** is encrypted with **age** in passphrase mode (`age -p`; Ubuntu package `age`). The output is `.tar.gz.age`. The passphrase is entered interactively, or comes from a `{credential: backup-passphrase}` for unattended use. Without age installed, `--include-secrets` refuses to run.
+  - **With `--include-secrets`**: `token.json` and the credential files are added, and the **whole archive** is encrypted with **age** in passphrase mode (`age -p`; Ubuntu package `age`). The output is `.tar.gz.age`. The passphrase is entered interactively: `age -p` only reads passphrases from a terminal, so encrypted backups cannot run unattended (found during implementation, 2026-10-08). The daily timer backups never include secrets, so they are unaffected. Without age installed, or without a terminal, `--include-secrets` refuses to run.
   - `livestream-scheduler restore PATH [--force]`:
     1. Decrypt if needed (a wrong passphrase means nothing is written).
     2. Verify the manifest checksums.

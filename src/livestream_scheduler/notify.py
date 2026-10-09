@@ -130,6 +130,18 @@ def current_problems(repo: Repo, report: Any) -> list[Problem]:
                 f"Reason: {o.state_reason}\n\nWhat to do: {fix}\n",
             )
         )
+    n = getattr(report, "unmanaged", 0)
+    if n:
+        problems.append(
+            Problem(
+                "unmanaged",
+                f"{n} upcoming livestreams on the channel are not managed (no record)",
+                f"{ctx}\n{n} upcoming livestreams on the channel are not managed (no record). "
+                "The app will never change or duplicate them.\n\nIf this server lost its data, "
+                "restore the latest backup (`livestream-scheduler restore`). Livestreams created "
+                "by hand are expected to appear here.\n",
+            )
+        )
     for occ_id, b in getattr(report, "external", []):
         occ = repo.occurrence(occ_id) if occ_id else None
         name = occ.title if occ else b.title
@@ -186,7 +198,8 @@ def after_run(repo: Repo, report: Any, cfg: Config) -> None:
     for row in repo.open_problems():
         if row.problem_key in active_keys or row.problem_key.startswith("external:"):
             continue
-        if row.problem_key in RUN_PROBLEMS and report.outcome not in ("success", "partial"):
+        run_level = row.problem_key in RUN_PROBLEMS or row.problem_key == "unmanaged"
+        if run_level and report.outcome not in ("success", "partial"):
             continue  # a failed run cannot tell whether other run-level problems cleared
         sent_before = row.last_sent_at is not None
         if not sent_before or send(

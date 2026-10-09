@@ -55,7 +55,7 @@ retention_days: 90
 backup:                          # research R18
   dir: /var/backups/livestream-scheduler
   keep: 14                       # daily backups retained (FR-020)
-  passphrase: null               # optional {credential: backup-passphrase} for unattended --include-secrets
+  passphrase: null               # reserved; must stay null (age reads passphrases only from a terminal)
 ```
 
 ## Validation rules

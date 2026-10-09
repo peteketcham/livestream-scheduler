@@ -306,7 +306,11 @@ class Repo:
         return _row(Run, self.conn.execute("SELECT * FROM run WHERE id = ?", (run_id,)).fetchone())
 
     def last_run(self, include_dry_run: bool = False) -> Run | None:
-        sql = "SELECT * FROM run WHERE outcome IS NOT NULL AND outcome != 'skipped_locked'"
+        sql = (
+            "SELECT * FROM run WHERE outcome IS NOT NULL AND outcome != 'skipped_locked' "
+            "AND NOT EXISTS (SELECT 1 FROM run_item i WHERE i.run_id = run.id "
+            "AND i.action = 'backup')"
+        )
         if not include_dry_run:
             sql += " AND dry_run = 0"
         return _row(Run, self.conn.execute(sql + " ORDER BY id DESC LIMIT 1").fetchone())

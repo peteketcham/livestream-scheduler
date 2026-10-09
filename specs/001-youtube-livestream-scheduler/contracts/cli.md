@@ -77,7 +77,7 @@ Validates the config, fetches and parses the feed, and prints the occurrences th
 
 ## `backup [--output DIR] [--include-secrets] [--prune]`
 
-Writes a backup archive (research R18). Without `--include-secrets` it contains `manifest.json`, `state.db` (online snapshot) and `config/`. With it, the token and credentials are added and the whole archive is age-encrypted. `--prune` keeps the newest `backup.keep`. stdout gives the archive path and size. Exit 2 if `--include-secrets` is used without `age` or a passphrase.
+Writes a backup archive (research R18). Without `--include-secrets` it contains `manifest.json`, `state.db` (online snapshot) and `config/`. With it, the token and credentials are added and the whole archive is age-encrypted. `--prune` keeps the newest `backup.keep`. stdout gives the archive path and size. Exit 2 if `--include-secrets` is used without `age` installed or outside a terminal (age prompts for the passphrase).
 
 ## `restore PATH [--force] [--apply-config]`
 

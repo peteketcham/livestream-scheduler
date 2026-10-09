@@ -50,6 +50,7 @@ class SyncReport:
     warnings: list[str] = field(default_factory=list)
     hold_reason: str | None = None
     external: list[tuple[int | None, RemoteBroadcast]] = field(default_factory=list)
+    unmanaged: int = 0  # upcoming channel livestreams with no ownership record (lost state)
 
 
 YouTubeFactory = Callable[[Any], YouTubePort]
@@ -154,6 +155,11 @@ def _sync(
         if not options.dry_run:
             recover(repo, lambda: yt.list_upcoming() if yt else [], run_id, connection.channel_id)
             external.recheck_existing(repo, cache, now)
+
+        if not options.dry_run and not repo.owned_broadcast_ids():
+            # No ownership records at all (fresh install or lost state): report what is on the
+            # channel that this app will not touch (research R18 "lost state without a backup").
+            report.unmanaged = len(cache.get())
 
         recorded = repo.occurrences()
         owned: dict[int, Broadcast] = {}

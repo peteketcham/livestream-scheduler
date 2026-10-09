@@ -298,6 +298,10 @@ def status(ctx: Ctx) -> None:
         )
     else:
         lines.append("last run: never")
+    from .backup import latest_backup
+
+    last = latest_backup(Path(cfg.backup.dir))
+    lines.append(f"backup:  {'last ' + last.name if last else 'none found in ' + cfg.backup.dir}")
     if problems:
         lines.append("open problems:")
         lines.extend(f"  - {p.problem_key}: {p.summary or ''}" for p in problems)
@@ -331,10 +335,14 @@ def config_check(ctx: Ctx) -> None:
     from .calendar.expand import FeedError, expand
     from .calendar.fetch import fetch_feed
     from .calendar.mapping import all_day_warning, map_instances
+    from .secretscan import scan
     from .sync.planner import window
     from .timeutil import utcnow
 
     cfg = ctx.config()
+    leaks = scan(ctx.config_path.parent)
+    if leaks:
+        raise CliError("; ".join(leaks), ExitCode.USAGE)
     lines = [f"config ok: {ctx.config_path}"]
     lines.extend(f"warning: {w}" for w in ctx.warnings())
     try:
@@ -518,6 +526,96 @@ def notify_test(ctx: Ctx) -> None:
     if not ok:
         raise CliError("could not send the test email (see log)", ExitCode.INTERNAL)
     emit(ctx, f"Test email sent to {cfg.notify.email_to}.", {"sent": True})
+
+
+# ---- backup / restore -------------------------------------------------------------------------
+@cli.command("backup")
+@click.option("--output", "output_dir", default=None, help="Directory (default: backup.dir)")
+@click.option("--include-secrets", is_flag=True, help="Add token + credentials, age-encrypted")
+@click.option("--prune", is_flag=True, help="Keep only the newest backup.keep archives")
+@click.pass_obj
+def backup_cmd(ctx: Ctx, output_dir: str | None, include_secrets: bool, prune: bool) -> None:
+    """Write a backup archive (no secrets unless --include-secrets)."""
+    from .backup import BackupError, backup
+
+    cfg = ctx.config()
+    repo = _repo(ctx)
+    out = Path(output_dir or cfg.backup.dir)
+    try:
+        path = backup(
+            cfg,
+            ctx.state_dir,
+            ctx.config_path.parent,
+            out,
+            include_secrets=include_secrets,
+            prune_keep=cfg.backup.keep if prune else None,
+        )
+    except BackupError as e:
+        from .notify import send
+
+        if not include_secrets:
+            send(cfg.notify, "[livestream-scheduler] PROBLEM: backup failed", f"Backup failed: {e}")
+        raise CliError(str(e), ExitCode.USAGE) from None
+    import os
+
+    trigger = "timer" if os.environ.get("INVOCATION_ID") else "manual"
+    run_id = repo.start_run(trigger, False)
+    with repo.tx():
+        repo.add_item(run_id, "backup", "ok", f"{path} ({path.stat().st_size} bytes)")
+        repo.finish_run(run_id, outcome="success")
+    emit(
+        ctx,
+        f"Backup written: {path} ({path.stat().st_size} bytes)",
+        {"path": str(path), "size": path.stat().st_size},
+    )
+
+
+@cli.command("restore")
+@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--force", is_flag=True, help="Overwrite newer existing state")
+@click.option("--apply-config", is_flag=True, help="Also copy the backup's config files")
+@click.pass_obj
+def restore_cmd(ctx: Ctx, archive: Path, force: bool, apply_config: bool) -> None:
+    """Restore a backup into this installation (never contacts YouTube)."""
+    from .backup import BackupError, restore
+
+    cfg = ctx.config()
+    try:
+        r = restore(
+            archive,
+            cfg,
+            ctx.state_dir,
+            ctx.config_path.parent,
+            force=force,
+            apply_config=apply_config,
+        )
+    except BackupError as e:
+        raise CliError(str(e), ExitCode.USAGE) from None
+    lines = [f"Restored: {', '.join(r.restored_files)}"]
+    if r.credentials:
+        lines.append(
+            f"Credentials restored to {r.credentials_dir} (move them into place): "
+            + ", ".join(r.credentials)
+        )
+    else:
+        lines.append(
+            "Credentials were not in this backup: supply oauth-client, calendar-url, "
+            "smtp-password again."
+        )
+    if r.needs_connect:
+        lines.append("No YouTube token in this backup: run `connect`.")
+    if r.config_commit:
+        lines.append(f"Backup was taken with config commit {r.config_commit}.")
+    lines.append("Next: `sync --dry-run` should show 0 creates for existing livestreams.")
+    emit(
+        ctx,
+        "\n".join(lines),
+        {
+            "restored": r.restored_files,
+            "needs_connect": r.needs_connect,
+            "credentials": r.credentials,
+        },
+    )
 
 
 # ---- occurrence overrides ---------------------------------------------------------------------
