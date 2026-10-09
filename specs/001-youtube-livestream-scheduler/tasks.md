@@ -245,19 +245,19 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T050 [P] [US3] Write `tests/unit/test_notify.py` (research R10):
+- [X] T050 [P] [US3] Write `tests/unit/test_notify.py` (research R10):
   - one email on success→failure, on `needs_reauth`, on a safety hold and on a conflict
   - no repeat within `reminder_hours` (24); a reminder after it
   - one "RESOLVED" email when the problem clears
   - no tokens, secrets or ICS URL in any email body
-- [ ] T051 [P] [US3] Write `tests/integration/test_us3_acceptance.py`: US3-1 (`runs`, `runs --run` show time, counts and items; the `--json` shapes match contracts/cli.md) and US3-2 (revoked auth → exit 3, an email with "reconnect needed", no changes)
+- [X] T051 [P] [US3] Write `tests/integration/test_us3_acceptance.py`: US3-1 (`runs`, `runs --run` show time, counts and items; the `--json` shapes match contracts/cli.md) and US3-2 (revoked auth → exit 3, an email with "reconnect needed", no changes)
 
 ### Implementation for User Story 3
 
-- [ ] T052 [P] [US3] Implement `src/livestream_scheduler/notify.py`: SMTP (`starttls`|`ssl`|`none`) with the password from a secret ref, the subject format `[livestream-scheduler] <PROBLEM|RESOLVED>: <short reason>`, and deduplication through the `notification` table (`opened_at`, `last_sent_at`, `resolved_at`)
-- [ ] T053 [US3] Wire notifications into `src/livestream_scheduler/sync/run.py` at the end of each run, covering all R10 transitions and `external:<occurrence_id>` (one-shot "Already on the channel" notice per 004 contracts/cli-additions.md)
-- [ ] T054 [US3] Add the CLI commands `runs [--limit N] [--run ID]`, `occurrences [--state …] [--all]` and `notify test` to `src/livestream_scheduler/cli.py`, with the `--json` shapes from contracts/cli.md
-- [ ] T055 [US3] Implement retention pruning in `src/livestream_scheduler/sync/run.py`: delete `run`/`run_item` older than `retention_days` (90) and terminal occurrences older than 90 days
+- [X] T052 [P] [US3] Implement `src/livestream_scheduler/notify.py`: SMTP (`starttls`|`ssl`|`none`) with the password from a secret ref, the subject format `[livestream-scheduler] <PROBLEM|RESOLVED>: <short reason>`, and deduplication through the `notification` table (`opened_at`, `last_sent_at`, `resolved_at`)
+- [X] T053 [US3] Wire notifications into `src/livestream_scheduler/sync/run.py` at the end of each run, covering all R10 transitions and `external:<occurrence_id>` (one-shot "Already on the channel" notice per 004 contracts/cli-additions.md)
+- [X] T054 [US3] Add the CLI commands `runs [--limit N] [--run ID]`, `occurrences [--state …] [--all]` and `notify test` to `src/livestream_scheduler/cli.py`, with the `--json` shapes from contracts/cli.md
+- [X] T055 [US3] Implement retention pruning in `src/livestream_scheduler/sync/run.py`: delete `run`/`run_item` older than `retention_days` (90) and terminal occurrences older than 90 days
 
 **Checkpoint**: All 001 user stories pass independently.
 

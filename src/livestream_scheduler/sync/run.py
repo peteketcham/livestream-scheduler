@@ -253,6 +253,8 @@ def _sync(
             "failed": res.failed if res else 0,
         }
         report.counts = counts
+        if not options.dry_run:
+            prune(repo, cfg.retention_days)
         repo.finish_run(
             run_id,
             outcome=report.outcome,
@@ -263,3 +265,35 @@ def _sync(
             quota_units_est=yt.quota_used if yt is not None else 0,
             **counts,
         )
+
+
+def prune(repo: Repo, retention_days: int) -> None:
+    """Delete run history and terminal occurrences older than the retention period."""
+    from datetime import timedelta
+
+    cutoff = to_iso(utcnow() - timedelta(days=retention_days))
+    with repo.tx():
+        old_runs = "SELECT id FROM run WHERE started_at < ?"
+        for col in ("first_seen_run_id", "last_seen_run_id"):
+            repo.conn.execute(
+                f"UPDATE occurrence SET {col} = NULL WHERE {col} IN ({old_runs})", (cutoff,)
+            )
+        repo.conn.execute("DELETE FROM run WHERE started_at < ?", (cutoff,))
+        old = [
+            r[0]
+            for r in repo.conn.execute(
+                "SELECT id FROM occurrence WHERE state IN ('cancelled','skipped','past') "
+                "AND start_utc < ?",
+                (cutoff,),
+            )
+        ]
+        for occ_id in old:
+            repo.conn.execute(
+                "DELETE FROM broadcast WHERE occurrence_id = ? "
+                "AND (deleted_at IS NOT NULL OR life_cycle_status IS NOT NULL)",
+                (occ_id,),
+            )
+            repo.conn.execute(
+                "UPDATE broadcast SET occurrence_id = NULL WHERE occurrence_id = ?", (occ_id,)
+            )
+            repo.conn.execute("DELETE FROM occurrence WHERE id = ?", (occ_id,))

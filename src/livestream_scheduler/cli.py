@@ -95,7 +95,15 @@ def _google_factory(creds: Any) -> Any:
 
 YOUTUBE_FACTORY: Any = _google_factory
 CONSENT: Any = None  # callable(client_config, open_browser, port) -> credentials
-AFTER_RUN: Any = None  # set by notify wiring (US3)
+
+
+def _default_after_run(repo: Any, report: Any, cfg: Any) -> None:
+    from .notify import after_run
+
+    after_run(repo, report, cfg)
+
+
+AFTER_RUN: Any = _default_after_run
 
 
 def _local(dt: Any, tz: str) -> str:
@@ -362,6 +370,154 @@ def config_check(ctx: Ctx) -> None:
             ]
         },
     )
+
+
+# ---- runs / occurrences / notify ---------------------------------------------------------------
+@cli.command()
+@click.option("--limit", default=10, show_default=True)
+@click.option("--run", "run_id", type=int, default=None, help="Show one run's items")
+@click.pass_obj
+def runs(ctx: Ctx, limit: int, run_id: int | None) -> None:
+    """Recent runs, or one run's per-item details."""
+    repo = _repo(ctx)
+
+    def counts(r: Any) -> dict[str, int]:
+        return {
+            k: getattr(r, k)
+            for k in ("created", "updated", "removed", "skipped", "deferred", "failed")
+        }
+
+    if run_id is not None:
+        r = repo.run(run_id)
+        if r is None:
+            raise CliError(f"no run #{run_id}", ExitCode.USAGE)
+        items = repo.items(run_id)
+        titles = {o.id: o.title for o in repo.occurrences()}
+        lines = [
+            f"run #{r.id} {r.started_at} → {r.finished_at} [{r.trigger}] {r.outcome}"
+            + (" (dry run)" if r.dry_run else ""),
+            "  " + "  ".join(f"{k} {v}" for k, v in counts(r).items()),
+        ]
+        if r.error_message:
+            lines.append(f"  {r.error_message}")
+        for i in items:
+            title = titles.get(i.occurrence_id or -1, "")
+            url = f" https://youtu.be/{i.broadcast_id}" if i.broadcast_id else ""
+            lines.append(
+                f"  {i.action:<18} {i.result:<8} #{i.occurrence_id or '-'} {title}{url}"
+                + (f" — {i.message}" if i.message else "")
+            )
+        emit(
+            ctx,
+            "\n".join(lines),
+            {
+                "run": {
+                    "id": r.id,
+                    "started_at": r.started_at,
+                    "finished_at": r.finished_at,
+                    "outcome": r.outcome,
+                    "dry_run": bool(r.dry_run),
+                    "counts": counts(r),
+                    "error_class": r.error_class,
+                    "error_message": r.error_message,
+                },
+                "items": [
+                    {
+                        "occurrence_id": i.occurrence_id,
+                        "action": i.action,
+                        "result": i.result,
+                        "broadcast_id": i.broadcast_id,
+                        "message": i.message,
+                    }
+                    for i in items
+                ],
+            },
+        )
+        return
+    rs = repo.runs(limit)
+    lines = [
+        f"#{r.id:<5} {r.started_at} {r.trigger:<6} {r.outcome or 'running':<14} "
+        + " ".join(f"{k[0]}{v}" for k, v in counts(r).items())
+        + (" (dry)" if r.dry_run else "")
+        + (f"  {r.error_message}" if r.error_message else "")
+        for r in rs
+    ]
+    emit(ctx, "\n".join(lines) or "no runs yet", {"runs": [r.__dict__ for r in rs]})
+
+
+@cli.command()
+@click.option("--state", "states", multiple=True, help="Filter by state (repeatable)")
+@click.option("--all", "show_all", is_flag=True, help="Include past/terminal occurrences")
+@click.pass_obj
+def occurrences(ctx: Ctx, states: tuple[str, ...], show_all: bool) -> None:
+    """Occurrences in the horizon with state, reason and livestream link."""
+    from zoneinfo import ZoneInfo
+
+    from .timeutil import from_iso, utcnow
+
+    cfg = ctx.config()
+    repo = _repo(ctx)
+    tz = ZoneInfo(cfg.defaults.timezone)
+    rows = repo.occurrences(states or None)
+    if not show_all and not states:
+        now = utcnow()
+        rows = [
+            o for o in rows if from_iso(o.start_utc) >= now and o.state not in ("cancelled", "past")
+        ]
+    out = []
+    lines = []
+    for o in rows:
+        b = repo.owned_broadcast(o.id)
+        url = (
+            f"https://youtu.be/{b.broadcast_id}"
+            if b
+            else (
+                f"https://youtu.be/{o.external_broadcast_id}" if o.external_broadcast_id else None
+            )
+        )
+        start = from_iso(o.start_utc).astimezone(tz)
+        out.append(
+            {
+                "id": o.id,
+                "key": o.key,
+                "start": start.isoformat(),
+                "title": o.title,
+                "visibility": o.visibility,
+                "state": o.state,
+                "reason": o.state_reason,
+                "deferred": o.deferred_reason,
+                "broadcast_url": url,
+            }
+        )
+        lines.append(
+            f"#{o.id:<4} {start:%Y-%m-%d %H:%M}  {o.visibility:<8} {o.state:<15} {o.title}"
+            + (f"  {url}" if url else "")
+            + (f"  ({o.state_reason})" if o.state_reason else "")
+            + (f"  [deferred: {o.deferred_reason}]" if o.deferred_reason else "")
+        )
+    emit(ctx, "\n".join(lines) or "no occurrences", {"occurrences": out})
+
+
+@cli.group("notify")
+def notify_group() -> None:
+    """Notification commands."""
+
+
+@notify_group.command("test")
+@click.pass_obj
+def notify_test(ctx: Ctx) -> None:
+    """Send a test email with the configured SMTP settings."""
+    from . import notify
+
+    cfg = ctx.config()
+    ok = notify.send(
+        cfg.notify,
+        f"{notify.PREFIX} test message",
+        "This is a test from livestream-scheduler. Notifications are working.",
+    )
+    if not ok:
+        raise CliError("could not send the test email (see log)", ExitCode.INTERNAL)
+    emit(ctx, f"Test email sent to {cfg.notify.email_to}.", {"sent": True})
 
 
 # ---- occurrence overrides ---------------------------------------------------------------------
