@@ -51,6 +51,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.mypy]
 strict = true
+plugins = ["pydantic.mypy"]
 files = ["src"]
 python_version = "3.12"
 

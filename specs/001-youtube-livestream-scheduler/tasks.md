@@ -40,16 +40,16 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ### Tests first
 
-- [ ] T006 [P] Write `tests/unit/test_paths.py` for the resolution order in contracts/deployment.md:
+- [X] T006 [P] Write `tests/unit/test_paths.py` for the resolution order in contracts/deployment.md:
   - config: `--config` → `$LSS_CONFIG` → `$CONFIGURATION_DIRECTORY/config.yaml` → platformdirs
   - state: `--state-dir` → `$LSS_STATE_DIR` → `$STATE_DIRECTORY` → platformdirs
-- [ ] T007 [P] Write `tests/unit/test_secrets.py`:
+- [X] T007 [P] Write `tests/unit/test_secrets.py`:
   - `{credential: name}` reads `$CREDENTIALS_DIRECTORY/name`
   - `{env: VAR}` reads the env var
   - `{file: path}` rejects modes wider than 0600 (0400 is accepted)
   - a missing credential raises the message `credential "calendar-url" not found in $CREDENTIALS_DIRECTORY (is LoadCredential= set?)`
-- [ ] T008 [P] Write `tests/unit/test_logging_redaction.py`: `ya29.` tokens, `refresh_token`, `client_secret`, `Authorization:` headers and ICS URLs containing `/ical/` are redacted. In journald mode (`$JOURNAL_STREAM` set) there are no timestamps.
-- [ ] T009 [P] Write `tests/unit/test_config.py` covering every validation row in contracts/config-schema.md:
+- [X] T008 [P] Write `tests/unit/test_logging_redaction.py`: `ya29.` tokens, `refresh_token`, `client_secret`, `Authorization:` headers and ICS URLs containing `/ical/` are redacted. In journald mode (`$JOURNAL_STREAM` set) there are no timestamps.
+- [X] T009 [P] Write `tests/unit/test_config.py` covering every validation row in contracts/config-schema.md:
   - exactly one of `calendar.url` / `calendar.path`
   - unknown keys → error
   - `defaults.timezone` must be a valid IANA zone
@@ -60,11 +60,11 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ### Implementation
 
-- [ ] T010 [P] Implement `src/livestream_scheduler/paths.py` (resolution per T006; `ensure_private(path)` refuses to start if `token.json` is wider than 0600)
-- [ ] T011 [P] Implement `src/livestream_scheduler/secrets.py`: a `SecretRef` union (`credential` | `env` | `file` | plain str with warning) and `resolve()`
-- [ ] T012 [P] Implement `src/livestream_scheduler/logging.py`: stderr handler, a `RedactingFilter`, and journald-aware formatting when `$JOURNAL_STREAM` is set
-- [ ] T013 Implement `src/livestream_scheduler/config.py`: pydantic v2 models for the whole YAML in contracts/config-schema.md (`version`, `google`, `calendar`, `defaults`, `youtube.channel_handle` (required, starts with `@`), `youtube.channel_id` (optional), `youtube.stream_id`, `horizon.days` (default 28), `overlaps` (`warn`|`allow`), `safety.min_lead_minutes` (default 15), `safety.max_removals_per_run` (default 5), `notify.*` with secret refs, `retention_days` (default 90), **`google.client_secret` as a secret ref** (default `{credential: oauth-client}`; research R19), **`backup.dir` (absolute, default `/var/backups/livestream-scheduler`), `backup.keep` (≥1, default 14), `backup.passphrase` (optional secret ref)**) with `extra="forbid"`. Depends on T011.
-- [ ] T014 Write `src/livestream_scheduler/db/schema/0001_init.sql` with every table in data-model.md:
+- [X] T010 [P] Implement `src/livestream_scheduler/paths.py` (resolution per T006; `ensure_private(path)` refuses to start if `token.json` is wider than 0600)
+- [X] T011 [P] Implement `src/livestream_scheduler/secrets.py`: a `SecretRef` union (`credential` | `env` | `file` | plain str with warning) and `resolve()`
+- [X] T012 [P] Implement `src/livestream_scheduler/logging.py`: stderr handler, a `RedactingFilter`, and journald-aware formatting when `$JOURNAL_STREAM` is set
+- [X] T013 Implement `src/livestream_scheduler/config.py`: pydantic v2 models for the whole YAML in contracts/config-schema.md (`version`, `google`, `calendar`, `defaults`, `youtube.channel_handle` (required, starts with `@`), `youtube.channel_id` (optional), `youtube.stream_id`, `horizon.days` (default 28), `overlaps` (`warn`|`allow`), `safety.min_lead_minutes` (default 15), `safety.max_removals_per_run` (default 5), `notify.*` with secret refs, `retention_days` (default 90), **`google.client_secret` as a secret ref** (default `{credential: oauth-client}`; research R19), **`backup.dir` (absolute, default `/var/backups/livestream-scheduler`), `backup.keep` (≥1, default 14), `backup.passphrase` (optional secret ref)**) with `extra="forbid"`. Depends on T011.
+- [X] T014 Write `src/livestream_scheduler/db/schema/0001_init.sql` with every table in data-model.md:
   - `channel_connection` with `CHECK (id = 1)`, `channel_handle TEXT NOT NULL`, status in (`connected`,`needs_reauth`,`not_eligible`)
   - `calendar_source` with `CHECK (id = 1)`; `url_hash` holds the SHA-256 only, never the URL
   - `occurrence`:
@@ -76,16 +76,16 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
   - `run` with `outcome` in (`success`,`partial`,`failed`,`skipped_locked`), `trigger` in (`timer`,`manual`), `dry_run INTEGER`, `config_commit TEXT NULL`
   - `run_item`
   - `notification` with `problem_key TEXT PK`
-- [ ] T015 Implement `src/livestream_scheduler/db/migrate.py`: `schema_version` table, forward-only application of `db/schema/*.sql` in order, `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`. Depends on T014.
-- [ ] T016 Implement `src/livestream_scheduler/db/repo.py`: typed dataclasses and accessors for every table, with all writes inside explicit transactions. Depends on T015.
-- [ ] T017 [P] Implement `src/livestream_scheduler/lock.py`: a non-blocking exclusive `fcntl.flock` on `<state_dir>/state.lock`, plus a `LockHeld` exception
-- [ ] T018 [P] Implement `src/livestream_scheduler/youtube/port.py` per contracts/youtube-port.md:
+- [X] T015 Implement `src/livestream_scheduler/db/migrate.py`: `schema_version` table, forward-only application of `db/schema/*.sql` in order, `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`. Depends on T014.
+- [X] T016 Implement `src/livestream_scheduler/db/repo.py`: typed dataclasses and accessors for every table, with all writes inside explicit transactions. Depends on T015.
+- [X] T017 [P] Implement `src/livestream_scheduler/lock.py`: a non-blocking exclusive `fcntl.flock` on `<state_dir>/state.lock`, plus a `LockHeld` exception
+- [X] T018 [P] Implement `src/livestream_scheduler/youtube/port.py` per contracts/youtube-port.md:
   - the `YouTubePort` Protocol: `whoami`, `get_broadcasts`, `list_upcoming`, `insert_broadcast`, `update_broadcast`, `delete_broadcast`, `bind`
   - the dataclasses `Channel(id, title, handle)`, `BroadcastSpec`, `Broadcast` with `managed_hash()` (UTC second precision, newline-normalized)
   - the exceptions `AuthError`, `ChannelMismatch`, `NotEligible`, `QuotaExceeded`, `TransientError`, `BroadcastNotFound`, `InvalidRequest(reason, message)`
-- [ ] T019 [P] Implement `src/livestream_scheduler/youtube/fake.py`: an in-memory `FakeYouTube`. It can pre-seed broadcasts "created by hand" (not via insert), inject errors per call, count quota per the contract table, and fail with `QuotaExceeded` after N writes.
-- [ ] T020 Write `tests/contract/test_youtube_port.py`: invariants 1–6 of contracts/youtube-port.md, parametrized over adapters (FakeYouTube now; GoogleYouTube added in T031). Depends on T018, T019.
-- [ ] T021 Implement the CLI skeleton in `src/livestream_scheduler/cli.py`:
+- [X] T019 [P] Implement `src/livestream_scheduler/youtube/fake.py`: an in-memory `FakeYouTube`. It can pre-seed broadcasts "created by hand" (not via insert), inject errors per call, count quota per the contract table, and fail with `QuotaExceeded` after N writes.
+- [X] T020 Write `tests/contract/test_youtube_port.py`: invariants 1–6 of contracts/youtube-port.md, parametrized over adapters (FakeYouTube now; GoogleYouTube added in T031). Depends on T018, T019.
+- [X] T021 Implement the CLI skeleton in `src/livestream_scheduler/cli.py`:
   - a click group with the global options `--config`, `--state-dir`, `--json`, `-v/-q`
   - an `ExitCode` IntEnum (0, 1, 2, 3, 4, 5, 10) and a `main()` that maps exceptions to exit codes
 
