@@ -23,14 +23,14 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Create `pyproject.toml`:
+- [X] T001 Create `pyproject.toml`:
   - build backend `hatchling`, `requires-python = ">=3.12,<3.13"`, console script `livestream-scheduler = "livestream_scheduler.cli:main"`
   - dependencies `google-api-python-client`, `google-auth`, `google-auth-oauthlib`, `icalendar>=6,<7`, `recurring-ical-events>=3,<4`, `click`, `pydantic>=2,<3`, `PyYAML`, `requests`, `platformdirs`
   - `[dependency-groups] dev = ["pytest", "time-machine", "responses", "ruff", "mypy", "types-PyYAML", "types-requests"]`
-- [ ] T002 [P] Run `uv lock` and commit `uv.lock` at the repo root (research R16). Pin Python only through `requires-python` in `pyproject.toml`. **Do not create `.python-version`**: dotfiles are never tracked in this repo.
-- [ ] T003 [P] Configure ruff (`[tool.ruff]`, target py312, line-length 100) and mypy (`strict = true`, `files = ["src"]`) in `pyproject.toml`. Add a tracked `.gitignore`, the **one** permitted dotfile (owner, 2026-10-08): `!/.gitignore` first (it overrides the `.*` rule in `.git/info/exclude`), then `__pycache__/`, `*.pyc`, `.venv/`, `venv/`, `dist/`, `build/`, `*.egg-info/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`, `dev/`, `.DS_Store`, `*.tmp`, `*.swp`, `.vscode/`, `.idea/`.
-- [ ] T004 [P] Create the package skeleton `src/livestream_scheduler/__init__.py` (`__version__`), the empty subpackages `calendar/`, `youtube/`, `sync/`, `db/`, `db/schema/`, the test dirs `tests/unit/`, `tests/contract/`, `tests/integration/`, `tests/live/`, `tests/fixtures/ics/`, and `tests/conftest.py` with a `tmp_state_dir` fixture
-- [ ] T005 [P] Add `scripts/check.sh` (bash, `set -euo pipefail`): `uv sync --locked && uv run ruff check && uv run mypy src && uv run pytest -m "not live"`, with `--fast` skipping integration tests. Add `scripts/install-git-hooks.sh`, which writes an **untracked** `.git/hooks/pre-commit` that runs `scripts/check.sh --fast`. These replace hosted CI, which would need the `.github/` dotfolder (owner rule: no tracked dotfiles).
+- [X] T002 [P] Run `uv lock` and commit `uv.lock` at the repo root (research R16). Pin Python only through `requires-python` in `pyproject.toml`. **Do not create `.python-version`**: dotfiles are never tracked in this repo.
+- [X] T003 [P] Configure ruff (`[tool.ruff]`, target py312, line-length 100) and mypy (`strict = true`, `files = ["src"]`) in `pyproject.toml`. Add a tracked `.gitignore`, the **one** permitted dotfile (owner, 2026-10-08): `!/.gitignore` first (it overrides the `.*` rule in `.git/info/exclude`), then `__pycache__/`, `*.pyc`, `.venv/`, `venv/`, `dist/`, `build/`, `*.egg-info/`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`, `dev/`, `.DS_Store`, `*.tmp`, `*.swp`, `.vscode/`, `.idea/`.
+- [X] T004 [P] Create the package skeleton `src/livestream_scheduler/__init__.py` (`__version__`), the empty subpackages `calendar/`, `youtube/`, `sync/`, `db/`, `db/schema/`, the test dirs `tests/unit/`, `tests/contract/`, `tests/integration/`, `tests/live/`, `tests/fixtures/ics/`, and `tests/conftest.py` with a `tmp_state_dir` fixture
+- [X] T005 [P] Add `scripts/check.sh` (bash, `set -euo pipefail`): `uv sync --locked && uv run ruff check && uv run mypy src && uv run pytest -m "not live"`, with `--fast` skipping integration tests. Add `scripts/install-git-hooks.sh`, which writes an **untracked** `.git/hooks/pre-commit` that runs `scripts/check.sh --fast`. These replace hosted CI, which would need the `.github/` dotfolder (owner rule: no tracked dotfiles).
 
 ---
 
