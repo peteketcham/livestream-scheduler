@@ -1,0 +1,11 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//livestream-scheduler tests//EN
+BEGIN:VEVENT
+UID:html@test
+DTSTART;TZID=America/Chicago:20261011T093000
+DTEND;TZID=America/Chicago:20261011T104500
+SUMMARY:   Sunday   Worship  
+DESCRIPTION:<b>Join us</b> for worship!<br>Bulletin: <a href="https://minnehaha.org/documents/Bulletin.pdf">here</a><br>yt.visibility: unlisted<br>yt.colour: blue<br>Tom &amp; Jerry &lt;3
+END:VEVENT
+END:VCALENDAR

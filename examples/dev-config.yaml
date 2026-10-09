@@ -1,0 +1,49 @@
+# livestream-scheduler — local development config (contracts/config-schema.md)
+# Secrets are never written here: only references to systemd credentials.
+version: 1
+
+google:
+  client_secret: {file: ./dev/client_secret.json}   # chmod 600
+
+calendar:
+  url: {env: LSS_CALENDAR_URL}
+  # include:
+  #   summary_prefix: "[LIVE] "                 # only events whose title starts with this
+
+defaults:
+  timezone: America/Chicago
+  visibility: public
+  made_for_kids: false
+  enable_auto_start: false
+  enable_auto_stop: false
+  enable_dvr: true
+
+youtube:
+  channel_handle: "@minnehahaumc"
+  channel_id: UCzwZQ34D3RZEncTf6fAe0hQ
+  stream_id: null                               # optional reusable stream key to bind
+
+horizon:
+  days: 28
+
+overlaps: warn
+
+safety:
+  min_lead_minutes: 15
+  max_removals_per_run: 5
+
+notify:
+  email_to: owner@example.org                   # CHANGE ME
+  email_from: livestream-scheduler@example.org  # CHANGE ME
+  smtp_host: smtp.example.org                   # CHANGE ME
+  smtp_port: 587
+  smtp_security: starttls
+  smtp_user: livestream-scheduler@example.org   # CHANGE ME
+  smtp_password: {env: LSS_SMTP_PASSWORD}
+  reminder_hours: 24
+
+retention_days: 90
+
+backup:
+  dir: /tmp/livestream-scheduler-backups
+  keep: 14

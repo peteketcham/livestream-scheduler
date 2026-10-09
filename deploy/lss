@@ -1,0 +1,24 @@
+#!/bin/sh
+# lss — run livestream-scheduler commands as the service user, with the same environment and
+# credentials as the systemd timer (contracts/deployment.md "Admin wrapper").
+#   lss status | lss connect --no-browser --port 8765 | lss sync --dry-run | ...
+set -eu
+APP=/opt/livestream-scheduler
+CREDS=/etc/livestream-scheduler-credentials
+
+set -- /usr/local/bin/uv run --frozen --no-sync --project "$APP" livestream-scheduler "$@"
+exec sudo systemd-run --quiet --pty --wait --collect \
+  --uid=livestream-scheduler --gid=livestream-scheduler \
+  -p WorkingDirectory="$APP" \
+  -p StateDirectory=livestream-scheduler -p StateDirectoryMode=0700 \
+  -p CacheDirectory=livestream-scheduler \
+  -p ConfigurationDirectory=livestream-scheduler \
+  -p UMask=0077 \
+  -p LoadCredential=oauth-client:"$CREDS"/oauth-client.json \
+  -p LoadCredential=calendar-url:"$CREDS"/calendar-url \
+  -p LoadCredential=smtp-password:"$CREDS"/smtp-password \
+  -E UV_PYTHON_INSTALL_DIR="$APP"/.uv-python \
+  -E UV_CACHE_DIR=/var/cache/livestream-scheduler \
+  -E UV_NO_SYNC=1 \
+  -E LSS_CONFIG=/etc/livestream-scheduler/config.yaml \
+  "$@"

@@ -1,0 +1,12 @@
+[Unit]
+Description=Run livestream-scheduler hourly
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+# Catch up after downtime (spec edge case: down for several days)
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
