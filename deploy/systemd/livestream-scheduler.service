@@ -1,0 +1,42 @@
+[Unit]
+Description=Schedule Minnehaha UMC YouTube livestreams
+Documentation=file:/opt/livestream-scheduler/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=livestream-scheduler
+Group=livestream-scheduler
+WorkingDirectory=/opt/livestream-scheduler
+Environment=UV_PYTHON_INSTALL_DIR=/opt/livestream-scheduler/.uv-python
+Environment=UV_CACHE_DIR=/var/cache/livestream-scheduler
+Environment=UV_NO_SYNC=1
+Environment=LSS_CONFIG=/etc/livestream-scheduler/config.yaml
+ExecStart=/usr/local/bin/uv run --frozen --no-sync --project /opt/livestream-scheduler \
+          livestream-scheduler sync --trigger timer
+StateDirectory=livestream-scheduler
+StateDirectoryMode=0700
+CacheDirectory=livestream-scheduler
+ConfigurationDirectory=livestream-scheduler
+LoadCredential=oauth-client:/etc/livestream-scheduler-credentials/oauth-client.json
+LoadCredential=calendar-url:/etc/livestream-scheduler-credentials/calendar-url
+LoadCredential=smtp-password:/etc/livestream-scheduler-credentials/smtp-password
+# exit 1 = partial (deferred/failed occurrences; owner already emailed) → not a unit failure
+SuccessExitStatus=1
+TimeoutStartSec=15min
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+UMask=0077

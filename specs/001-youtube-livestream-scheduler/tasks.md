@@ -314,9 +314,9 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T065 [P] Add `deploy/systemd/livestream-scheduler.service` and `deploy/systemd/livestream-scheduler.timer`, verbatim from contracts/deployment.md (hardening, `LoadCredential=`, `SuccessExitStatus=1`, `OnCalendar=hourly`, `Persistent=true`, `RandomizedDelaySec=5min`)
-- [ ] T066 [P] Add `deploy/lss`: a POSIX sh wrapper around `systemd-run --pty --wait --collect --uid=livestream-scheduler …` that runs `uv run --frozen --no-sync --project /opt/livestream-scheduler livestream-scheduler "$@"` (contracts/deployment.md). Mark it executable.
-- [ ] T067 Write `deploy/install.sh` (bash, `set -euo pipefail`, idempotent, run with sudo). Usage: `deploy/install.sh vX.Y.Z --config-repo <URL> [--config-ref main]`, plus the subcommands `config-pull [--ref <ref>]` and `restore <backup>` (contracts/deployment.md, research R17/R18):
+- [X] T065 [P] Add `deploy/systemd/livestream-scheduler.service` and `deploy/systemd/livestream-scheduler.timer`, verbatim from contracts/deployment.md (hardening, `LoadCredential=`, `SuccessExitStatus=1`, `OnCalendar=hourly`, `Persistent=true`, `RandomizedDelaySec=5min`)
+- [X] T066 [P] Add `deploy/lss`: a POSIX sh wrapper around `systemd-run --pty --wait --collect --uid=livestream-scheduler …` that runs `uv run --frozen --no-sync --project /opt/livestream-scheduler livestream-scheduler "$@"` (contracts/deployment.md). Mark it executable.
+- [X] T067 Write `deploy/install.sh` (bash, `set -euo pipefail`, idempotent, run with sudo). Usage: `deploy/install.sh vX.Y.Z --config-repo <URL> [--config-ref main]`, plus the subcommands `config-pull [--ref <ref>]` and `restore <backup>` (contracts/deployment.md, research R17/R18):
   - check: Ubuntu (via `/etc/os-release`), `systemctl --version` ≥ 250 (abort on 22.04 with a clear message), `timedatectl show -p NTPSynchronized` = yes (warn otherwise)
   - `apt-get install -y git curl ca-certificates sqlite3 age`
   - create the `livestream-scheduler` system user and the directories with the owners and modes in contracts/deployment.md "Layout on the host"
@@ -329,8 +329,8 @@ description: "Task list for 001 YouTube Livestream Scheduler (MVP)"
   - install both unit pairs (sync + backup) and `lss`; `systemctl daemon-reload`; do **not** enable either timer
   - print next steps: copy `client_secret.json`, `lss config check`, the SSH tunnel + `lss connect --no-browser --port 8765`, `lss sync --dry-run`, `systemctl enable --now livestream-scheduler.timer livestream-scheduler-backup.timer`
   - target: under 10 minutes total with the `lss connect` step (SC-001)
-- [ ] T068 [P] Write `README.md` covering the purpose, local development with uv, home-server deployment on Ubuntu 24.04 via `deploy/install.sh` (pointing to the quickstart), a short "What is the Google Cloud project for?" note (free API registration only; nothing is hosted at Google), the **config repository workflow** (edit, push, `install.sh config-pull`), **backups and moving servers** (copy `/var/backups/livestream-scheduler` off the server; the steps in contracts/deployment.md "Move to a new server"), Conventional Commits, and the Google OAuth "In production" requirement (research R9)
-- [ ] T069 [P] Write `tests/live/test_smoke.py`, marked `live` and skipped unless `LSS_LIVE_TEST=1`: create, update and delete one broadcast on a test channel and clean up
+- [X] T068 [P] Write `README.md` covering the purpose, local development with uv, home-server deployment on Ubuntu 24.04 via `deploy/install.sh` (pointing to the quickstart), a short "What is the Google Cloud project for?" note (free API registration only; nothing is hosted at Google), the **config repository workflow** (edit, push, `install.sh config-pull`), **backups and moving servers** (copy `/var/backups/livestream-scheduler` off the server; the steps in contracts/deployment.md "Move to a new server"), Conventional Commits, and the Google OAuth "In production" requirement (research R9)
+- [X] T069 [P] Write `tests/live/test_smoke.py`, marked `live` and skipped unless `LSS_LIVE_TEST=1`: create, update and delete one broadcast on a test channel and clean up
 - [ ] T070 Run `uv run ruff check`, `uv run mypy src` and `uv run pytest`. Then walk through quickstart.md manual scenarios 1–19 on the test channel and record the results in `specs/001-youtube-livestream-scheduler/quickstart.md` notes.
 - [ ] T071 Run the FR-015 secret audit and record the result in `specs/001-youtube-livestream-scheduler/quickstart.md`: grep the journald output and a `state.db` dump for `ya29.`, `refresh_token`, `client_secret` and the ICS URL (quickstart #12). Expect 0 hits.
 
